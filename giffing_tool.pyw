@@ -180,8 +180,6 @@ class CaptureButton(tk.Button):
         self.master_screen = tk.Toplevel(self.parent)
         self.master_screen.withdraw()
         self.master_screen.attributes('-transparent', 'maroon3')
-        self.picture_frame = tk.Frame(self.master_screen, background='maroon3')
-        self.picture_frame.pack(fill=tk.BOTH, expand=tk.YES)
 
     def main_button_press(self):
         self.configure(state=tk.DISABLED)
@@ -200,7 +198,7 @@ class CaptureButton(tk.Button):
         self.parent.parent.withdraw()
         self.master_screen.bind('<Escape>', lambda *_: self.cancel_capture())
 
-        self.snip_surface = tk.Canvas(self.picture_frame, cursor='cross', bg='grey11')
+        self.snip_surface = tk.Canvas(self.master_screen, cursor='cross', bg='grey11')
         self.snip_surface.pack(fill=tk.BOTH, expand=tk.YES)
 
         self.snip_surface.bind('<ButtonPress-1>', self.on_snip_press)
