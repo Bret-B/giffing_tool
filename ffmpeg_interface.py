@@ -53,7 +53,7 @@ class RecorderConfig:
     MIN_WIDTH = 20
     MAX_WIDTH = 3840
     DEFAULT_MOUSE = False
-    DEFAULT_SCREEN = 1
+    DEFAULT_SCREEN = 0
     MATTE_COLOR_TEMP = '313338'
     DEFAULT_QUALITY = 90
     DEFAULT_MOTION_QUALITY = 90
@@ -69,7 +69,7 @@ class RecorderConfig:
         self.draw_mouse: bool = self.DEFAULT_MOUSE
         # self.output_filename: str = ''  # absolute or relative path without a file extension
         # self.output_type: str | None = None  # 'gif, mp4, etc'
-        self.screen_num: int = self.DEFAULT_SCREEN  # 1-based index (e.g. monitor 1 and 2)
+        self.screen_num: int = self.DEFAULT_SCREEN  # 0-based index
         self.gifski_quality: int = self.DEFAULT_QUALITY
         self.gifski_motion_quality: int = self.DEFAULT_MOTION_QUALITY
         self.gifski_lossy_quality: int = self.DEFAULT_LOSSY_QUALITY
@@ -98,7 +98,7 @@ class RecorderConfig:
             '-init_hw_device', 'd3d11va',
             '-filter_complex',
 
-            f'ddagrab=output_idx={self.screen_num - 1}'
+            f'ddagrab=output_idx={self.screen_num}'
             # TODO: ddagrab at low fps doesn't work very well, almost like a frame pacing issues
             f':framerate={self.cap_fps}'
             f':draw_mouse={"true" if self.draw_mouse else "false"}'
@@ -221,12 +221,12 @@ class FFmpegInterface:
             frames = os.path.join(self.cfg.tempfile_name, f'frame*{FRAME_FORMAT}')
 
         args = self.cfg.final_format_conversion_args(frames, filename, size_offsets)
-        print(f'starting save: {args}')
+        # print(f'starting save: {args}')
         subprocess.run(args,
                        stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL,
                        creationflags=subprocess.CREATE_NO_WINDOW)
-        print('save finished')
+        # print('save finished')
         # self.cfg.remove_tempfile()
         if callback:
             callback()
@@ -236,7 +236,7 @@ class FFmpegInterface:
                                start_callback: Optional[Callable] = None,
                                finish_callback: Optional[Callable] = None):
         self.cfg.new()
-        print('Starting capture (until flagged)')
+        # print('Starting capture (until flagged)')
         self._capturing = True
         self._finished.clear()
         proc = subprocess.Popen(self.cfg.capture_args(size_offsets),
@@ -264,7 +264,7 @@ class FFmpegInterface:
         while not self._capture_finish_queue.empty():
             fn = self._capture_finish_queue.get()
             fn()
-        print('Successfully stopped capture')
+        # print('Successfully stopped capture')
 
     # def _capture_for_seconds(self, seconds: float | int):
     #     self._capturing = True

@@ -5,17 +5,18 @@ import tkinter.filedialog
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
 import queue
-from constants import PACKAGE_DIRECTORY
-from ffmpeg_interface import FFmpegInterface, RecorderConfig, SizeAndOffsets
 import time
 import sys
 import os
+
+from constants import PACKAGE_DIRECTORY
+from ffmpeg_interface import FFmpegInterface, RecorderConfig, SizeAndOffsets
+from displays import get_monitors, monitor_areas
 
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Windows version >= 8.1
 except:
     ctypes.windll.user32.SetProcessDPIAware()  # Windows version <= 8.0
-
 
 
 class Application:
@@ -177,9 +178,9 @@ class CaptureButton(tk.Button):
         self.last_size_offsets: SizeAndOffsets | None = None
         self.app = app
         self.parent = parent
-        self.master_screen = tk.Toplevel(self.parent)
-        self.master_screen.withdraw()
-        self.master_screen.attributes('-transparent', 'maroon3')
+        self.areas = []
+        self.screens = []
+        self.snip_surfaces = []
 
     def main_button_press(self):
         self.configure(state=tk.DISABLED)
@@ -191,26 +192,40 @@ class CaptureButton(tk.Button):
         else:
             self.stop_capturing()
 
+    def get_screen(self, x: int, y: int) -> int:
+        for i, (left, top, right, bottom) in enumerate(self.areas):
+            if left <= x < right and top <= y < bottom:
+                return i
+        return -1
+
     def create_snip_plane(self):
         self.prev_geometry = self.app.master.winfo_geometry()
-
-        self.master_screen.deiconify()
         self.parent.parent.withdraw()
-        self.master_screen.bind('<Escape>', lambda *_: self.cancel_capture())
 
-        self.snip_surface = tk.Canvas(self.master_screen, cursor='cross', bg='grey11')
-        self.snip_surface.pack(fill=tk.BOTH, expand=tk.YES)
+        self.areas = monitor_areas()
+        self.screens = [tk.Toplevel() for _ in self.areas]
+        for area, screen in zip(self.areas, self.screens):
+            screen.withdraw()
+            screen.attributes('-transparent', 'maroon3')
+            screen.deiconify()
+            screen.bind('<Escape>', lambda *_: self.cancel_capture())
+            # screen.attributes('-fullscreen', True)
+            left, top, right, bottom = area
+            screen.geometry(f'{right - left}x{bottom - top}+{left}+{top}')
+            screen.resizable(False, False)
+            screen.overrideredirect(True)
+            screen.attributes('-alpha', .3)
+            screen.lift()
+            screen.attributes('-topmost', True)
+            screen.focus_set()
+            screen.update_idletasks()
 
-        self.snip_surface.bind('<ButtonPress-1>', self.on_snip_press)
-        self.snip_surface.bind('<B1-Motion>', self.on_snip_drag)
-        self.snip_surface.bind('<ButtonRelease-1>', self.delay_start_capture)
-
-        # self.master_screen.geometry('+3840+2160')  # this doesnt work
-        self.master_screen.attributes('-fullscreen', True)
-        self.master_screen.attributes('-alpha', .3)
-        self.master_screen.lift()
-        self.master_screen.attributes('-topmost', True)
-        self.master_screen.focus_set()
+        self.snip_surfaces = [tk.Canvas(screen, cursor='cross', bg='grey11') for screen in self.screens]
+        for surface in self.snip_surfaces:
+            surface.pack(fill=tk.BOTH, expand=tk.YES)
+            surface.bind('<ButtonPress-1>', self.on_snip_press)
+            surface.bind('<B1-Motion>', self.on_snip_drag)
+            surface.bind('<ButtonRelease-1>', self.delay_start_capture)
 
     def stop_capturing(self):
         if self.start_timer is not None or self.time_of_start is not None:
@@ -257,10 +272,16 @@ class CaptureButton(tk.Button):
         self.start_timer = None
         self.time_of_start = None
 
-        xmin = max(min(self.start_x, self.current_x), 0)
-        xmax = min(max(self.start_x, self.current_x), self.app.resx)
-        ymin = max(min(self.start_y, self.current_y), 0)
-        ymax = min(max(self.start_y, self.current_y), self.app.resy)
+        screen = self.get_screen(self.start_x, self.start_y)
+        self.app.ffmpeg_interface.cfg.screen_num = screen
+        left, top, right, bottom = self.areas[screen]
+        relative_start_x, relative_start_y = self.start_x - left, self.start_y - top
+        relative_current_x, relative_current_y = self.current_x - left, self.current_y - top
+
+        xmin = max(min(relative_start_x, relative_current_x), 0)
+        xmax = min(max(relative_start_x, relative_current_x), right - left)
+        ymin = max(min(relative_start_y, relative_current_y), 0)
+        ymax = min(max(relative_start_y, relative_current_y), bottom - top)
         # print(xmin, ymin)
         # print(xmax, ymax)
         self.last_size_offsets = SizeAndOffsets(xmax - xmin, ymax - ymin, xmin, ymin)
@@ -288,9 +309,9 @@ class CaptureButton(tk.Button):
             self.app.action_buttons.save_button.configure(state=tk.NORMAL)
 
     def exit_screenshot_mode(self):
-        self.snip_surface.destroy()
+        for screen in self.screens:
+            screen.destroy()  # also destroys snip surfaces (children)
         self.app.master.geometry(self.prev_geometry)
-        self.master_screen.withdraw()
         self.parent.parent.deiconify()
 
     def cancel_capture(self):
@@ -300,12 +321,21 @@ class CaptureButton(tk.Button):
     def on_snip_press(self, event):
         # save mouse drag start position
         self.start_x, self.start_y = event.x_root, event.y_root
-        self.snip_surface.create_rectangle(0, 0, 1, 1, outline='red', width=3, fill='maroon3')
+        screen = self.get_screen(self.start_x, self.start_y)
+        assert screen >= 0
+        assert screen < len(self.snip_surfaces)
+
+        surface = self.snip_surfaces[screen]
+        surface.create_rectangle(0, 0, 1, 1, outline='red', width=3, fill='maroon3')
 
     def on_snip_drag(self, event):
         # expand rectangle as you drag the mouse
-        self.current_x, self.current_y = (event.x_root, event.y_root)
-        self.snip_surface.coords(1, self.start_x, self.start_y, self.current_x, self.current_y)
+        screen = self.get_screen(self.start_x, self.start_y)
+        surface = self.snip_surfaces[screen]
+        left, top, _, _ = self.areas[screen]
+        self.current_x, self.current_y = event.x_root, event.y_root
+        # coords should be relative to the screen
+        surface.coords(1, self.start_x - left, self.start_y - top, self.current_x - left, self.current_y - top)
 
 
 class OptionsMenu(tk.Frame):
