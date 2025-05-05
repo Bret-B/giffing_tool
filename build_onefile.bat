@@ -1,0 +1,1 @@
+pyinstaller --noconfirm --clean --onefile --noconsole --icon "resources\icon.ico" --add-binary "resources\ffmpeg.exe:resources" --add-binary "resources\gifski.exe:resources" --add-data "breeze-dark:breeze-dark" --add-data "resources\icon.ico:resources" --contents-directory "_internal" giffing_tool.pyw
