@@ -11,7 +11,7 @@ import os
 
 from constants import PACKAGE_DIRECTORY
 from ffmpeg_interface import FFmpegInterface, RecorderConfig, SizeAndOffsets
-from displays import get_monitors, monitor_areas
+from displays import monitor_areas
 
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Windows version >= 8.1
@@ -122,12 +122,10 @@ class ActionButtons(tk.Frame):
             return
 
         # filename popup blocks interaction with the app until it exits (at least on Windows)
-        # self.app.disable()
         filename: str = tk.filedialog.asksaveasfilename(confirmoverwrite=True,
                                                         defaultextension=RecorderConfig.OUTPUT_FORMATS[0],
                                                         filetypes=RecorderConfig.OUTPUT_FORMATS)
         if not filename:
-            # self.app.enable()
             return
 
         self.last_saved_filename.set(filename)
@@ -136,15 +134,12 @@ class ActionButtons(tk.Frame):
         self.app.disable()
 
         def enable():
-            # self.app.make_gui_call(self.app.restore_state)
             self.app.make_gui_call(self.app.restore_state)
             self.app.action_buttons.enable()
 
         self.app.ffmpeg_interface.save(filename, self.capture_button.last_size_offsets, callback=enable)
 
     def copy_clipboard(self):
-        # self.clipboard_clear()
-        # self.clipboard_append(self.last_saved_filename.get())
         filename = self.last_saved_filename.get()
         if not filename:
             return
@@ -282,8 +277,6 @@ class CaptureButton(tk.Button):
         xmax = min(max(relative_start_x, relative_current_x), right - left)
         ymin = max(min(relative_start_y, relative_current_y), 0)
         ymax = min(max(relative_start_y, relative_current_y), bottom - top)
-        # print(xmin, ymin)
-        # print(xmax, ymax)
         self.last_size_offsets = SizeAndOffsets(xmax - xmin, ymax - ymin, xmin, ymin)
         timer = threading.Timer(RecorderConfig.MAX_DURATION_SECONDS, self.app.make_gui_call, args=[self.stop_capturing])
         timer.start()

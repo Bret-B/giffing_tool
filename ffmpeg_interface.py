@@ -59,7 +59,6 @@ class RecorderConfig:
     DEFAULT_MOTION_QUALITY = 90
     DEFAULT_LOSSY_QUALITY = 90
 
-    # __slots__ = 'fps', 'output_width', 'bbox', 'duplicate_frames', 'draw_mouse'
 
     def __init__(self):
         self.cap_fps: int = self.DEFAULT_FPS
@@ -67,8 +66,6 @@ class RecorderConfig:
         self.output_width: int = self.DEFAULT_WIDTH
         # self.duplicate_frames: bool = True
         self.draw_mouse: bool = self.DEFAULT_MOUSE
-        # self.output_filename: str = ''  # absolute or relative path without a file extension
-        # self.output_type: str | None = None  # 'gif, mp4, etc'
         self.screen_num: int = self.DEFAULT_SCREEN  # 0-based index
         self.gifski_quality: int = self.DEFAULT_QUALITY
         self.gifski_motion_quality: int = self.DEFAULT_MOTION_QUALITY
@@ -145,9 +142,6 @@ class FFmpegInterface:
         self._done_capturing = threading.Event()
         self._capture_finish_queue = queue.Queue()
 
-    # def capture_for_seconds(self, seconds: float | int):
-    #     self._executor.submit(self._capture_for_seconds, seconds)
-
     def capture_until_flagged(self, size_offsets: SizeAndOffsets, timer: threading.Timer | None = None,
                               start_callback: Optional[Callable] = None,
                               finish_callback: Optional[Callable] = None):
@@ -157,7 +151,6 @@ class FFmpegInterface:
         return os.path.exists(self.cfg.tempfile_name)
 
     def stop_capture(self):
-        # print('Setting done capture flag...')
         self._done_capturing.set()
 
     def save(self, filename: str, size_offsets: SizeAndOffsets | None, callback: Optional[Callable] = None):
@@ -196,9 +189,7 @@ class FFmpegInterface:
             shutil.rmtree(subset_path, ignore_errors=True)
             frames = list(Path(self.cfg.tempfile_name).glob(f'*{FRAME_FORMAT}'))
             frames.sort()
-            # assert (debug := [int(frame.name.removeprefix(FRAME_BASE_NAME).split('.')[0]) for frame in frames]) == sorted(debug)
             max_frame_num = extract_frame_number(frames[-1].name) + 1
-            # print(f'Found {max_frame_num=}')
             frame_subset = equal_dist_els(frames, self.cfg.keep_percentage / 100.0) if self.cfg.keep_percentage != 100.0 else frames
             # now, symlink the subset frames to their original location in the parent folder
             # frame_subset/frame0001.png (symlink) -> frame0001.png
@@ -208,7 +199,6 @@ class FFmpegInterface:
                 new_name = frame.name
                 if self.cfg.reverse_gif:
                     new_frame_number = max_frame_num - extract_frame_number(frame.name)
-                    # print(f'Mapping frame {extract_frame_number(frame.name)} to {new_frame_number=}')
                     new_name = format_frame_number(new_frame_number)
 
                 subprocess.run(['cmd', '/c', 'mklink', os.path.join(subset_path, new_name), str(frame)],
@@ -221,12 +211,10 @@ class FFmpegInterface:
             frames = os.path.join(self.cfg.tempfile_name, f'frame*{FRAME_FORMAT}')
 
         args = self.cfg.final_format_conversion_args(frames, filename, size_offsets)
-        # print(f'starting save: {args}')
         subprocess.run(args,
                        stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL,
                        creationflags=subprocess.CREATE_NO_WINDOW)
-        # print('save finished')
         # self.cfg.remove_tempfile()
         if callback:
             callback()
@@ -236,7 +224,6 @@ class FFmpegInterface:
                                start_callback: Optional[Callable] = None,
                                finish_callback: Optional[Callable] = None):
         self.cfg.new()
-        # print('Starting capture (until flagged)')
         self._capturing = True
         self._finished.clear()
         proc = subprocess.Popen(self.cfg.capture_args(size_offsets),
@@ -247,7 +234,7 @@ class FFmpegInterface:
                                 stderr=subprocess.DEVNULL,
                                 text=True)
         # stderr=subprocess.PIPE)
-        time.sleep(0.25)  # estimate a .25s capture startup delay
+        time.sleep(0.25)  # estimate a .25s capture startup delay as a hack
         if start_callback:
             start_callback()
         self._done_capturing.wait()
@@ -264,25 +251,8 @@ class FFmpegInterface:
         while not self._capture_finish_queue.empty():
             fn = self._capture_finish_queue.get()
             fn()
-        # print('Successfully stopped capture')
-
-    # def _capture_for_seconds(self, seconds: float | int):
-    #     self._capturing = True
-    #     self._finished.clear()
-    #     proc = subprocess.Popen(self.cfg.capture_args(),
-    #                             stdin=subprocess.PIPE,
-    #                             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-    #                             stdout=subprocess.DEVNULL,
-    #                             stderr=subprocess.DEVNULL)
-    #     time.sleep(seconds + 0.25)  # estimate a .25s capture startup delay
-    #     proc.send_signal(signal.CTRL_BREAK_EVENT)
-    #     proc.terminate()
-    #     proc.wait()
-    #     self._finished.set()
-    #     self._capturing = False
 
 
-# utterly copied and pasted
 def equal_dist_els(my_list, fraction):
     """
     Chose a fraction of equally distributed elements.
