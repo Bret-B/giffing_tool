@@ -4,3 +4,4 @@ build/
 dist/
 *.lnk
 giffing_tool.spec
+resources/*.exe
